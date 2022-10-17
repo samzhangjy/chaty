@@ -32,7 +32,10 @@ export class AuthHelper {
   }
 
   public generateToken(user: User) {
-    return this.jwt.sign({ id: user.id, email: user.email }, { expiresIn: 60 });
+    return this.jwt.sign(
+      { id: user.id, email: user.email },
+      { expiresIn: '30d' },
+    );
   }
 
   public isPasswordValid(password: string, userPassword: string) {
