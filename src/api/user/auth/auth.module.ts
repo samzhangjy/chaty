@@ -21,6 +21,7 @@ import { JwtStrategy } from './auth.strategy';
     }),
     TypeOrmModule.forFeature([User]),
   ],
+  exports: [AuthHelper],
   controllers: [AuthController],
   providers: [AuthService, AuthHelper, JwtStrategy],
 })

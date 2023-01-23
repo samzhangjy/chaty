@@ -1,5 +1,6 @@
-import { Exclude } from 'class-transformer';
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { classToPlain, Exclude } from 'class-transformer';
+import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { Message } from '../chat/chat.entity';
 
 @Entity()
 export class User {
@@ -18,4 +19,11 @@ export class User {
 
   @Column({ type: 'timestamp', nullable: true, default: null })
   public lastLoginAt: Date | null;
+
+  @OneToMany(() => Message, (message) => message.sender)
+  public messages!: Message[];
+
+  toJSON() {
+    return classToPlain(this);
+  }
 }
