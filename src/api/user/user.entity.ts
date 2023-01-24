@@ -1,13 +1,8 @@
 import { Exclude, instanceToPlain } from 'class-transformer';
-import {
-  Column,
-  Entity,
-  ManyToMany,
-  OneToMany,
-  PrimaryGeneratedColumn,
-} from 'typeorm';
+import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { Message } from '../chat/chat.entity';
-import { Group } from '../chat/group/group.entity';
+import { GroupToUser } from '../chat/group/groupToUser.entity';
+import { JoinGroupRequest } from '../chat/group/joinGroupRequest.entity';
 
 @Entity()
 export class User {
@@ -27,16 +22,25 @@ export class User {
   @Column({ type: 'timestamp', nullable: true, default: null })
   public lastLoginAt: Date | null;
 
+  @Column({ nullable: true })
+  public socketId: string;
+
+  @Column({ default: false })
+  public online!: boolean;
+
   @OneToMany(() => Message, (message) => message.sender)
   public messages!: Message[];
 
-  @ManyToMany(() => Group, (group) => group.members)
-  public joinedGroups!: Group[];
+  @OneToMany(() => GroupToUser, (groupToUser) => groupToUser.user)
+  public joinedGroups!: GroupToUser[];
 
-  @OneToMany(() => Group, (group) => group.owner)
-  public ownedGroups!: Group[];
+  @OneToMany(
+    () => JoinGroupRequest,
+    (joinGroupRequest) => joinGroupRequest.user,
+  )
+  public sentJoinRequests!: JoinGroupRequest[];
 
   toJSON() {
-    return instanceToPlain(this);
+    return instanceToPlain(this, { enableCircularCheck: true });
   }
 }

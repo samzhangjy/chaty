@@ -1,9 +1,9 @@
 import { ChatyConfig } from '@/common/helper/config.helper';
 import { paginateResponse } from '@/common/helper/pagination.helper';
-import { Injectable, Inject } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Server } from 'socket.io';
+import { Socket } from 'socket.io';
 import { Repository } from 'typeorm';
 import { User } from '../user/user.entity';
 import { SendMessageDto } from './chat.dto';
@@ -15,12 +15,13 @@ export class ChatService {
   private readonly configService: ConfigService<ChatyConfig, true>;
 
   @InjectRepository(Message)
-  private readonly repository: Repository<Message>;
+  private readonly messageRepository: Repository<Message>;
 
-  public server: Server;
+  @InjectRepository(User)
+  private readonly userRepository: Repository<User>;
 
   public async createMessage(msg: Message) {
-    return await this.repository.save(msg);
+    return await this.messageRepository.save(msg);
   }
 
   public async getMessages(
@@ -34,7 +35,7 @@ export class ChatService {
     const page = query.page || 1;
     const skip = (page - 1) * take;
 
-    const data = await this.repository.findAndCount({
+    const data = await this.messageRepository.findAndCount({
       relations: {
         sender: true,
       },
@@ -57,8 +58,21 @@ export class ChatService {
     const message = new Message();
     message.content = payload.msg;
     message.sender = payload.user;
-    await this.repository.save(message);
-    this.server.emit('recvMessage', message);
+    await this.messageRepository.save(message);
     return message;
+  }
+
+  public async handleConnection(socket: Socket, user: User) {
+    return await this.userRepository.update(user.id, {
+      socketId: socket.id,
+      online: true,
+    });
+  }
+
+  public async handleDisconnect(user: User) {
+    return await this.userRepository.update(user.id, {
+      socketId: null,
+      online: false,
+    });
   }
 }

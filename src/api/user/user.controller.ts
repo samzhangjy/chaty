@@ -17,6 +17,7 @@ import { UpdateUserDto } from './user.dto';
 import { UserService } from './user.service';
 
 @Controller('user')
+@UseInterceptors(ClassSerializerInterceptor)
 export class UserController {
   @Inject(UserService)
   private readonly service: UserService;
@@ -29,7 +30,6 @@ export class UserController {
 
   @Put('update/:id')
   @UseGuards(JwtAuthGuard)
-  @UseInterceptors(ClassSerializerInterceptor)
   updateUser(
     @Body() body: UpdateUserDto,
     @Request() req: any,

@@ -1,66 +1,138 @@
-import { User } from '../../user/user.entity';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { User } from '../../user/user.entity';
+import {
+  CreateGroupDto,
+  JoinGroupRequestDto,
+  UpdateJoinGroupRequestStatusDto,
+} from './group.dto';
 import { Group } from './group.entity';
 import {
   GroupNotFoundException,
   MemberAlreadyExistsException,
   MemberNotFoundException,
 } from './group.exception';
-import { CreateGroupDto } from './group.dto';
+import { GroupRoles, GroupToUser } from './groupToUser.entity';
+import {
+  JoinGroupRequest,
+  JoinGroupRequestStatus,
+} from './joinGroupRequest.entity';
 
 @Injectable()
 export class GroupService {
   @InjectRepository(Group)
-  groupRepository: Repository<Group>;
+  private readonly groupRepository: Repository<Group>;
 
   @InjectRepository(User)
-  userRepository: Repository<User>;
+  private readonly userRepository: Repository<User>;
 
-  private async findGroupOrFail(groupId: number) {
-    const group = await this.groupRepository.findOneBy({ id: groupId });
+  @InjectRepository(GroupToUser)
+  private readonly groupToUserRepository: Repository<GroupToUser>;
+
+  @InjectRepository(JoinGroupRequest)
+  private readonly joinGroupRequestRepository: Repository<JoinGroupRequest>;
+
+  private async findGroupOrFail(groupId: number, loadRelations = false) {
+    const group = await this.groupRepository.findOne({
+      where: { id: groupId },
+      relations: loadRelations ? ['members', 'members.user'] : undefined,
+    });
     if (!group) {
       throw new GroupNotFoundException();
     }
     return group;
   }
 
-  public async createGroup(data: CreateGroupDto) {
-    const owner = await this.userRepository.findOneBy({ id: data.ownerId });
-    if (!owner) {
-      throw new MemberNotFoundException();
-    }
-    const members = [owner];
-    for (const memberId of data.members) {
+  public async createGroup({
+    name: groupName,
+    user,
+    members: memberIds,
+  }: CreateGroupDto) {
+    const group = await this.groupRepository.save({
+      members: [],
+      name: groupName,
+    });
+
+    const owner = await this.groupToUserRepository.save({
+      role: GroupRoles.OWNER,
+      user,
+      group,
+    });
+    const members: GroupToUser[] = [owner];
+    for (const memberId of memberIds) {
       const member = await this.userRepository.findOneBy({ id: memberId });
       if (!member) {
         throw new MemberNotFoundException();
       }
-      members.push(member);
+      members.push(
+        await this.groupToUserRepository.save({
+          user: member,
+          role: GroupRoles.MEMBER,
+          group,
+        }),
+      );
     }
-    const group = new Group();
-    group.owner = owner;
     group.members = members;
-    group.name = data.name;
-    return this.groupRepository.save(group);
+
+    await this.groupRepository.save(group);
+  }
+
+  public async sendJoinGroupRequest({ groupId, user }: JoinGroupRequestDto) {
+    const group = await this.findGroupOrFail(groupId, true);
+    if (group.members.find((member) => member.user.id === user.id)) {
+      throw new MemberAlreadyExistsException();
+    }
+
+    return await this.joinGroupRequestRepository.save({
+      status: JoinGroupRequestStatus.WAITING,
+      group,
+      user,
+    });
+  }
+
+  public async updateJoinGroupRequestStatus({
+    requestId,
+    status,
+  }: UpdateJoinGroupRequestStatusDto) {
+    await this.joinGroupRequestRepository.update(requestId, {
+      status,
+    });
+    const request = await this.joinGroupRequestRepository.findOne({
+      where: {
+        id: requestId,
+      },
+      relations: ['group', 'user'],
+    });
+
+    if (request.status === JoinGroupRequestStatus.ACCEPTED) {
+      await this.joinGroup(request.group.id, request.user);
+    }
+    return request;
   }
 
   public async joinGroup(groupId: number, user: User) {
-    const group = await this.findGroupOrFail(groupId);
-    if (group.members.find((member) => member.id === user.id)) {
+    const group = await this.findGroupOrFail(groupId, true);
+    if (group.members.find((member) => member.user.id === user.id)) {
       throw new MemberAlreadyExistsException();
     }
-    group.members.push(user);
+    const member = await this.groupToUserRepository.save({
+      role: GroupRoles.MEMBER,
+      user,
+      group,
+    });
+    group.members.push(member);
     return await this.groupRepository.save(group);
   }
 
   public async leaveGroup(groupId: number, user: User) {
-    const group = await this.findGroupOrFail(groupId);
-    if (!group.members.find((member) => member.id === user.id)) {
+    const group = await this.findGroupOrFail(groupId, true);
+    if (!group.members.find((member) => member.user.id === user.id)) {
       throw new MemberNotFoundException();
     }
-    group.members = group.members.filter((member) => member.id !== user.id);
+    group.members = group.members.filter(
+      (member) => member.user.id !== user.id,
+    );
     return await this.groupRepository.save(group);
   }
 }

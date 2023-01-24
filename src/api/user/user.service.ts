@@ -12,7 +12,7 @@ export class UserService {
   public async getUser(id: number) {
     const user = await this.repository.findOne({
       where: { id },
-      relations: ['joinedGroups'],
+      relations: ['joinedGroups', 'joinedGroups.group'],
     });
 
     if (!user) {

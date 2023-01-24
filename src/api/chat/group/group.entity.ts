@@ -1,13 +1,12 @@
-import { User } from '@/api/user/user.entity';
 import {
   Column,
   CreateDateColumn,
   Entity,
-  JoinTable,
-  ManyToMany,
-  ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
+import { GroupToUser } from './groupToUser.entity';
+import { JoinGroupRequest } from './joinGroupRequest.entity';
 
 @Entity()
 export class Group {
@@ -17,13 +16,15 @@ export class Group {
   @Column()
   public name!: string;
 
-  @ManyToOne(() => User, (user) => user.ownedGroups)
-  public owner!: User;
+  @OneToMany(() => GroupToUser, (groupToUser) => groupToUser.group)
+  public members!: GroupToUser[];
 
-  @ManyToMany(() => User, (user) => user.joinedGroups)
-  @JoinTable()
-  public members!: User[];
+  @OneToMany(
+    () => JoinGroupRequest,
+    (joinGroupRequest) => joinGroupRequest.group,
+  )
+  public joinRequests!: JoinGroupRequest[];
 
   @CreateDateColumn()
-  createdAt: Date;
+  public createdAt!: Date;
 }
