@@ -6,10 +6,16 @@ import { ChatController } from './chat.controller';
 import { Message } from './chat.entity';
 import { ChatGateway } from './chat.gateway';
 import { ChatService } from './chat.service';
+import { GroupModule } from './group/group.module';
 
 @Module({
   controllers: [ChatController],
   providers: [ChatService, ChatGateway],
-  imports: [AuthModule, TypeOrmModule.forFeature([Message]), ConfigModule],
+  imports: [
+    AuthModule,
+    TypeOrmModule.forFeature([Message]),
+    ConfigModule,
+    GroupModule,
+  ],
 })
 export class ChatModule {}

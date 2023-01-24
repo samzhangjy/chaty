@@ -1,6 +1,13 @@
-import { classToPlain, Exclude } from 'class-transformer';
-import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { Exclude, instanceToPlain } from 'class-transformer';
+import {
+  Column,
+  Entity,
+  ManyToMany,
+  OneToMany,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
 import { Message } from '../chat/chat.entity';
+import { Group } from '../chat/group/group.entity';
 
 @Entity()
 export class User {
@@ -23,7 +30,13 @@ export class User {
   @OneToMany(() => Message, (message) => message.sender)
   public messages!: Message[];
 
+  @ManyToMany(() => Group, (group) => group.members)
+  public joinedGroups!: Group[];
+
+  @OneToMany(() => Group, (group) => group.owner)
+  public ownedGroups!: Group[];
+
   toJSON() {
-    return classToPlain(this);
+    return instanceToPlain(this);
   }
 }

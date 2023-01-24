@@ -5,7 +5,6 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
 import {
   MessageBody,
   OnGatewayConnection,
@@ -15,13 +14,13 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Repository } from 'typeorm';
 import { WsGuard } from '../user/auth/auth.guard';
 import { AuthHelper } from '../user/auth/auth.helper';
 import { SendMessageDto } from './chat.dto';
-import { Message } from './chat.entity';
 import { WsExceptionFilter } from './chat.filter';
 import { ChatService } from './chat.service';
+import { CreateGroupDto } from './group/group.dto';
+import { GroupService } from './group/group.service';
 
 @UseFilters(WsExceptionFilter)
 @UsePipes(new ValidationPipe())
@@ -37,16 +36,22 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
   @Inject(AuthHelper)
   private readonly authHelper: AuthHelper;
 
-  @InjectRepository(Message)
-  private readonly repository: Repository<Message>;
-
   @Inject(ChatService)
-  private readonly service: ChatService;
+  private readonly chatService: ChatService;
+
+  @Inject(GroupService)
+  private readonly groupService: GroupService;
 
   @UseGuards(WsGuard)
   @SubscribeMessage('sendMessage')
   async handleSendMessage(@MessageBody() payload: SendMessageDto) {
-    return await this.service.handleSendMessage(payload);
+    return await this.chatService.handleSendMessage(payload);
+  }
+
+  @UseGuards(WsGuard)
+  @SubscribeMessage('createGroup')
+  async handleCreateGroup(@MessageBody() payload: CreateGroupDto) {
+    return await this.groupService.createGroup(payload);
   }
 
   async handleConnection(client: Socket) {
@@ -63,6 +68,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
   }
 
   afterInit(server: Server) {
-    this.service.server = server;
+    this.chatService.server = server;
   }
 }

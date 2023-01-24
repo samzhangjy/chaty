@@ -31,7 +31,6 @@ export class ChatService {
       query.take || 10,
       this.configService.get('query.limit', { infer: true }),
     );
-    console.log(take, typeof take);
     const page = query.page || 1;
     const skip = (page - 1) * take;
 

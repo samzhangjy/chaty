@@ -10,7 +10,10 @@ export class UserService {
   private readonly repository: Repository<User>;
 
   public async getUser(id: number) {
-    const user = await this.repository.findOne({ where: { id } });
+    const user = await this.repository.findOne({
+      where: { id },
+      relations: ['joinedGroups'],
+    });
 
     if (!user) {
       throw new HttpException('Cannot find user.', HttpStatus.NOT_FOUND);
