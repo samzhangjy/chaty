@@ -1,3 +1,5 @@
+import { channels } from '@/common/channels.constant';
+import { AckStatus } from '@/common/helper/status.helper';
 import {
   ClassSerializerInterceptor,
   Inject,
@@ -15,20 +17,13 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import { instanceToPlain } from 'class-transformer';
 import { Server, Socket } from 'socket.io';
 import { WsGuard } from '../user/auth/auth.guard';
 import { AuthHelper } from '../user/auth/auth.helper';
 import { SendMessageDto } from './chat.dto';
 import { WsExceptionFilter } from './chat.filter';
 import { ChatService } from './chat.service';
-import {
-  CreateGroupDto,
-  JoinGroupRequestDto,
-  UpdateJoinGroupRequestStatusDto,
-} from './group/group.dto';
 import { GroupService } from './group/group.service';
-import { GroupRoles } from './group/groupToUser.entity';
 
 @UseFilters(WsExceptionFilter)
 @UsePipes(new ValidationPipe())
@@ -40,7 +35,7 @@ import { GroupRoles } from './group/groupToUser.entity';
 })
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
-  private readonly server: Server;
+  public readonly server: Server;
 
   @Inject(AuthHelper)
   private readonly authHelper: AuthHelper;
@@ -51,49 +46,34 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @Inject(GroupService)
   private readonly groupService: GroupService;
 
+  emitToSockets(sockets: string[] | string, event: string, message: any) {
+    return this.server.to(sockets).emit(event, message);
+  }
+
+  async emitToGroup(groupId: number, event: string, message: any) {
+    const members = await this.groupService.getGroupMembers(groupId);
+    return this.emitToSockets(
+      members
+        .filter((member) => member.user.online)
+        .map((member) => member.user.socketId),
+      event,
+      message,
+    );
+  }
+
+  async sendMessage(payload: SendMessageDto, check = true) {
+    const [response, sockets] = await this.chatService.sendMessage(
+      payload,
+      check,
+    );
+    this.emitToSockets(sockets, channels.group.message.recv, response);
+  }
+
   @UseGuards(WsGuard)
-  @SubscribeMessage('sendMessage')
+  @SubscribeMessage(channels.group.message.send)
   async handleSendMessage(@MessageBody() payload: SendMessageDto) {
-    const response = await this.chatService.handleSendMessage(payload);
-    this.server.emit('recvMessage', response);
-  }
-
-  @UseGuards(WsGuard)
-  @SubscribeMessage('createGroup')
-  async handleCreateGroup(@MessageBody() payload: CreateGroupDto) {
-    await this.groupService.createGroup(payload);
-    this.server.to(payload.user.socketId).emit('createGroup', {
-      status: 'success',
-    });
-  }
-
-  @UseGuards(WsGuard)
-  @SubscribeMessage('joinGroupRequest')
-  async handleJoinGroupRequest(@MessageBody() payload: JoinGroupRequestDto) {
-    const request = await this.groupService.sendJoinGroupRequest(payload);
-    this.server
-      .to(payload.user.socketId)
-      .emit('joinGroupRequest', { status: 'success' });
-    this.server
-      .to(
-        request.group.members.find((member) => member.role === GroupRoles.OWNER)
-          .user.socketId,
-      )
-      .emit(
-        'newJoinGroupRequest',
-        instanceToPlain(request, { enableCircularCheck: true }),
-      );
-  }
-
-  @UseGuards(WsGuard)
-  @SubscribeMessage('updateJoinGroupRequestStatus')
-  async handleUpdateJoinGroupRequestStatus(
-    @MessageBody() payload: UpdateJoinGroupRequestStatusDto,
-  ) {
-    await this.groupService.updateJoinGroupRequestStatus(payload);
-    this.server
-      .to(payload.user.socketId)
-      .emit('updateJoinGroupRequestStatus', { status: 'success' });
+    await this.sendMessage(payload);
+    return AckStatus.success();
   }
 
   async handleConnection(client: Socket) {
@@ -103,7 +83,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const decoded = await this.authHelper.decode(bearerToken);
       const user = await this.authHelper.validateUser(decoded);
 
-      if (!user) client.disconnect();
+      if (!user) {
+        client.disconnect();
+        return;
+      }
 
       this.chatService.handleConnection(client, user);
     } catch {
@@ -111,10 +94,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
-  async handleDisconnect(client: any) {
+  async handleDisconnect(client: Socket) {
     const bearerToken = client.handshake.headers.authorization.split(' ')[1];
     const decoded = await this.authHelper.decode(bearerToken);
     const user = await this.authHelper.validateUser(decoded);
+
+    if (!user) return;
 
     this.chatService.handleDisconnect(user);
   }

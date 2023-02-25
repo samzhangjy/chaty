@@ -23,10 +23,6 @@ export class CreateGroupDto {
 }
 
 export class JoinGroupRequestDto {
-  @IsNotEmpty()
-  @IsNumber()
-  groupId: number;
-
   @IsOptional()
   @IsString()
   message: string;
@@ -36,12 +32,29 @@ export class JoinGroupRequestDto {
 
 export class UpdateJoinGroupRequestStatusDto {
   @IsNotEmpty()
-  @IsString()
-  requestId: string;
-
-  @IsNotEmpty()
   @IsEnum(JoinGroupRequestStatus)
   status: JoinGroupRequestStatus;
+
+  user: User;
+}
+
+export class LeaveGroupDto {
+  @IsOptional()
+  @IsNumber()
+  transferOwnershipTo?: number;
+}
+
+export type GroupRequestFilter =
+  | 'ALL'
+  | 'HANDLED'
+  | 'UNHANDLED'
+  | 'ACCEPTED'
+  | 'UNACCEPTED';
+
+export class KickFromGroupDto {
+  @IsNotEmpty()
+  @IsNumber()
+  targetId: number;
 
   user: User;
 }

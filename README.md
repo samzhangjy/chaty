@@ -6,6 +6,6 @@ Yet another Nestjs Chatroom. WIP.
 
 - [x] Basic authentication
 - [ ] One-to-one chat
-- [ ] Group chat
+- [x] Group chat
 - [ ] Chaty Moments
 - [ ] Chaty Status

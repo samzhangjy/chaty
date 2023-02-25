@@ -9,10 +9,12 @@ export class UserService {
   @InjectRepository(User)
   private readonly repository: Repository<User>;
 
-  public async getUser(id: number) {
+  public async getUser(id: number, loadRelations = true) {
     const user = await this.repository.findOne({
       where: { id },
-      relations: ['joinedGroups', 'joinedGroups.group'],
+      relations: loadRelations
+        ? ['joinedGroups', 'joinedGroups.group']
+        : undefined,
     });
 
     if (!user) {

@@ -1,5 +1,5 @@
+import { Column, Entity, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { User } from '../../../api/user/user.entity';
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
 import { Group } from './group.entity';
 
 export enum GroupRoles {
@@ -17,7 +17,7 @@ export class GroupToUser {
   public group!: Group;
 
   @ManyToOne(() => User, (user) => user.joinedGroups)
-  public user!: User;
+  public user?: User;
 
   @Column({
     type: 'enum',

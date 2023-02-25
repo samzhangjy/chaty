@@ -7,16 +7,25 @@ import { ChatController } from './chat.controller';
 import { Message } from './chat.entity';
 import { ChatGateway } from './chat.gateway';
 import { ChatService } from './chat.service';
+import { Group } from './group/group.entity';
 import { GroupModule } from './group/group.module';
 
 @Module({
   controllers: [ChatController],
-  providers: [ChatService, ChatGateway],
+  providers: [
+    ChatService,
+    // {
+    //   provide: 'WEBSOCKET_GATEWAY',
+    //   useValue: new ChatGateway(),
+    // },
+    ChatGateway,
+  ],
   imports: [
     AuthModule,
-    TypeOrmModule.forFeature([Message, User]),
+    TypeOrmModule.forFeature([Message, User, Group]),
     ConfigModule,
     GroupModule,
   ],
+  exports: [ChatGateway],
 })
 export class ChatModule {}

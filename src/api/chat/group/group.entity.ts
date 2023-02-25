@@ -5,6 +5,7 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
+import { Message } from '../chat.entity';
 import { GroupToUser } from './groupToUser.entity';
 import { JoinGroupRequest } from './joinGroupRequest.entity';
 
@@ -24,6 +25,9 @@ export class Group {
     (joinGroupRequest) => joinGroupRequest.group,
   )
   public joinRequests!: JoinGroupRequest[];
+
+  @OneToMany(() => Message, (message) => message.group)
+  public messages!: Message[];
 
   @CreateDateColumn()
   public createdAt!: Date;

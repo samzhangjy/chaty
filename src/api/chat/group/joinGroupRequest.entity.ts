@@ -1,10 +1,16 @@
 import { User } from '../../user/user.entity';
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  CreateDateColumn,
+} from 'typeorm';
 import { Group } from './group.entity';
 
 export enum JoinGroupRequestStatus {
   ACCEPTED = 'accepted',
-  DENIED = 'denied',
+  UNACCEPTED = 'unaccepted',
   WAITING = 'waiting',
 }
 
@@ -28,4 +34,7 @@ export class JoinGroupRequest {
 
   @Column({ nullable: true })
   public message?: string;
+
+  @CreateDateColumn()
+  public createdAt!: Date;
 }

@@ -1,10 +1,19 @@
-import { Injectable } from '@nestjs/common';
+import { UserService } from '@/api/user/user.service';
+import { ServiceException } from '@/common/helper/exception.helper';
+import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import {
+  FindOptionsRelationByString,
+  FindOptionsRelations,
+  In,
+  Repository,
+} from 'typeorm';
 import { User } from '../../user/user.entity';
 import {
   CreateGroupDto,
+  GroupRequestFilter,
   JoinGroupRequestDto,
+  LeaveGroupDto,
   UpdateJoinGroupRequestStatusDto,
 } from './group.dto';
 import { Group } from './group.entity';
@@ -33,15 +42,55 @@ export class GroupService {
   @InjectRepository(JoinGroupRequest)
   private readonly joinGroupRequestRepository: Repository<JoinGroupRequest>;
 
-  private async findGroupOrFail(groupId: number, loadRelations = false) {
+  @Inject(UserService)
+  private readonly userService: UserService;
+
+  public async findGroupOrFail(
+    groupId: number,
+    loadRelations:
+      | boolean
+      | FindOptionsRelations<Group>
+      | FindOptionsRelationByString = false,
+  ) {
     const group = await this.groupRepository.findOne({
       where: { id: groupId },
-      relations: loadRelations ? ['members', 'members.user'] : undefined,
+      relations: loadRelations
+        ? typeof loadRelations === 'boolean'
+          ? ['members', 'members.user']
+          : loadRelations
+        : undefined,
     });
     if (!group) {
       throw new GroupNotFoundException();
     }
     return group;
+  }
+
+  public async checkMemberRole(
+    groupId: number,
+    userId: number,
+    roles: GroupRoles | GroupRoles[],
+  ) {
+    const groupToUser = await this.groupToUserRepository.findOne({
+      where: {
+        group: {
+          id: groupId,
+        },
+        user: {
+          id: userId,
+        },
+      },
+    });
+    if (!groupToUser) {
+      throw new ServiceException(
+        'Group or member not found.',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    return (
+      (Array.isArray(roles) && roles.includes(groupToUser.role)) ||
+      roles === groupToUser.role
+    );
   }
 
   public async createGroup({
@@ -78,7 +127,13 @@ export class GroupService {
     await this.groupRepository.save(group);
   }
 
-  public async sendJoinGroupRequest({ groupId, user }: JoinGroupRequestDto) {
+  public async sendRequest({
+    groupId,
+    user,
+    message,
+  }: JoinGroupRequestDto & {
+    groupId: number;
+  }) {
     const group = await this.findGroupOrFail(groupId, true);
     if (group.members.find((member) => member.user.id === user.id)) {
       throw new MemberAlreadyExistsException();
@@ -88,30 +143,83 @@ export class GroupService {
       status: JoinGroupRequestStatus.WAITING,
       group,
       user,
+      message,
     });
   }
 
-  public async updateJoinGroupRequestStatus({
-    requestId,
-    status,
-  }: UpdateJoinGroupRequestStatusDto) {
-    await this.joinGroupRequestRepository.update(requestId, {
-      status,
+  public async getRequests({
+    groupId,
+    filter,
+  }: {
+    groupId: number;
+    filter: GroupRequestFilter;
+  }) {
+    const requests = await this.joinGroupRequestRepository.find({
+      where: {
+        group: { id: groupId },
+        status:
+          filter === 'UNHANDLED'
+            ? JoinGroupRequestStatus.WAITING
+            : filter === 'ACCEPTED'
+            ? JoinGroupRequestStatus.ACCEPTED
+            : filter === 'UNACCEPTED'
+            ? JoinGroupRequestStatus.UNACCEPTED
+            : filter === 'HANDLED'
+            ? In([
+                JoinGroupRequestStatus.ACCEPTED,
+                JoinGroupRequestStatus.UNACCEPTED,
+              ])
+            : undefined,
+      },
+      order: {
+        createdAt: 'desc',
+      },
+      relations: ['user'],
     });
+    return requests;
+  }
+
+  public async updateRequest({
+    requestId,
+    groupId,
+    status,
+    user,
+  }: UpdateJoinGroupRequestStatusDto & {
+    requestId: string;
+    groupId: number;
+    user: User;
+  }) {
     const request = await this.joinGroupRequestRepository.findOne({
       where: {
         id: requestId,
       },
       relations: ['group', 'user'],
     });
-
+    if (request.group.id !== groupId) {
+      throw new ServiceException(
+        'Request not found with given group.',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    if (
+      !(await this.checkMemberRole(groupId, user.id, [
+        GroupRoles.OWNER,
+        GroupRoles.ADMIN,
+      ]))
+    ) {
+      throw new ServiceException('Forbidden.', HttpStatus.FORBIDDEN);
+    }
+    await this.joinGroupRequestRepository.update(requestId, {
+      status,
+    });
+    request.status = status;
     if (request.status === JoinGroupRequestStatus.ACCEPTED) {
-      await this.joinGroup(request.group.id, request.user);
+      await this.join(request.group.id, request.user);
     }
     return request;
   }
 
-  public async joinGroup(groupId: number, user: User) {
+  public async join(groupId: number, user: User) {
     const group = await this.findGroupOrFail(groupId, true);
     if (group.members.find((member) => member.user.id === user.id)) {
       throw new MemberAlreadyExistsException();
@@ -125,14 +233,80 @@ export class GroupService {
     return await this.groupRepository.save(group);
   }
 
-  public async leaveGroup(groupId: number, user: User) {
+  public async leave(
+    { groupId, transferOwnershipTo }: LeaveGroupDto & { groupId: number },
+    user: User,
+  ) {
     const group = await this.findGroupOrFail(groupId, true);
     if (!group.members.find((member) => member.user.id === user.id)) {
       throw new MemberNotFoundException();
     }
+    const isCurrentUserOwner = !!group.members.find(
+      (member) =>
+        member.user.id === user.id && member.role === GroupRoles.OWNER,
+    );
+    const futureOwnerGTUId = group.members.find(
+      (member) =>
+        member.user.id === transferOwnershipTo &&
+        transferOwnershipTo !== user.id,
+    )?.id;
+    if (isCurrentUserOwner && (!transferOwnershipTo || !futureOwnerGTUId)) {
+      throw new ServiceException(
+        'You must declare a valid user to transfer ownership to.',
+        HttpStatus.BAD_REQUEST,
+      );
+    } else if (isCurrentUserOwner) {
+      await this.groupToUserRepository.update(futureOwnerGTUId, {
+        role: GroupRoles.OWNER,
+      });
+    }
+    await this.groupToUserRepository.delete({
+      group: { id: group.id },
+      user: { id: user.id },
+    });
     group.members = group.members.filter(
       (member) => member.user.id !== user.id,
     );
-    return await this.groupRepository.save(group);
+    const newGroup = await this.groupRepository.save(group);
+    return newGroup;
+  }
+
+  public async kick(groupId: number, handler: User, target: User) {
+    const group = await this.findGroupOrFail(groupId, true);
+    const handlerRole = group.members.find(
+      (member) => member.user.id === handler.id,
+    )?.role;
+    if (
+      !group.members.find(
+        (member) =>
+          member.user.id === handler.id &&
+          [GroupRoles.OWNER, GroupRoles.ADMIN].includes(member.role),
+      )
+    ) {
+      throw new ServiceException(
+        'Handler with given id does not exist or does not have enough permission.',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    if (
+      group.members.find(
+        (member) =>
+          member.user.id === target.id &&
+          (handlerRole === GroupRoles.ADMIN
+            ? [GroupRoles.OWNER, GroupRoles.ADMIN]
+            : [GroupRoles.OWNER]
+          ).includes(member.role),
+      )
+    ) {
+      throw new ServiceException(
+        'User with given id have higher or equal permission with handler.',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+    return await this.leave({ groupId }, target);
+  }
+
+  public async getGroupMembers(groupId: number) {
+    return (await this.findGroupOrFail(groupId, true)).members;
   }
 }

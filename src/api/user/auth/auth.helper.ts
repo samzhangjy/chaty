@@ -26,9 +26,13 @@ export class AuthHelper {
   }
 
   public async validateUser(decoded: any) {
-    return this.repository.findOne({
-      where: { id: decoded.id },
-    });
+    try {
+      return this.repository.findOne({
+        where: { id: decoded.id },
+      });
+    } catch {
+      return null;
+    }
   }
 
   public generateToken(user: User) {

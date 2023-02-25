@@ -6,6 +6,16 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { User } from '../user/user.entity';
+import { Group } from './group/group.entity';
+
+export enum MessageType {
+  TEXT = 'text',
+  SYSTEM = 'system',
+  IMAGE = 'image',
+  VIDEO = 'video',
+  VOICE = 'voice',
+  FILE = 'file',
+}
 
 @Entity()
 export class Message {
@@ -15,9 +25,19 @@ export class Message {
   @Column()
   public content!: string;
 
-  @ManyToOne(() => User, (user) => user.messages)
-  public sender!: User;
+  @ManyToOne(() => User, (user) => user.messages, { nullable: true })
+  public sender?: User | null;
+
+  @ManyToOne(() => Group, (group) => group.messages)
+  public group!: Group;
 
   @CreateDateColumn()
   public createdAt!: Date;
+
+  @Column({
+    type: 'enum',
+    enum: MessageType,
+    default: MessageType.TEXT,
+  })
+  public type!: MessageType;
 }
