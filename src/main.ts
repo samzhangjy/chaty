@@ -10,10 +10,15 @@ async function bootstrap() {
   const config: ConfigService = configApp.get(ConfigService);
   const privateKeyLoc = config.get<string>('HTTPS_PRIVATE_KEY');
   const certLoc = config.get<string>('HTTPS_PUBLIC_CERT');
+
   const httpsOptions = {
     key: privateKeyLoc ? fs.readFileSync(privateKeyLoc) : undefined,
     cert: certLoc ? fs.readFileSync(certLoc) : undefined,
   };
+
+  console.log(
+    `\x1b[34m[Https] Chaty configured with private key at ${privateKeyLoc} and certifacate at ${certLoc}.\x1b[0m`,
+  );
 
   const app: NestExpressApplication = await NestFactory.create(AppModule, {
     httpsOptions,
