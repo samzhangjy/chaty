@@ -1,6 +1,14 @@
 import { Exclude, instanceToPlain } from 'class-transformer';
-import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  Entity,
+  ManyToOne,
+  OneToMany,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
 import { Message } from '../chat/chat.entity';
+import { Friend } from '../chat/friend/friend.entity';
+import { FriendRequest } from '../chat/friend/friendRequest.entity';
 import { GroupToUser } from '../chat/group/groupToUser.entity';
 import { JoinGroupRequest } from '../chat/group/joinGroupRequest.entity';
 
@@ -39,6 +47,15 @@ export class User {
     (joinGroupRequest) => joinGroupRequest.user,
   )
   public sentJoinRequests!: JoinGroupRequest[];
+
+  @OneToMany(() => Friend, (friend) => friend.target)
+  public friends!: Friend[];
+
+  @OneToMany(() => FriendRequest, (friendRequest) => friendRequest.target)
+  public receivedFriendRequests!: FriendRequest[];
+
+  @OneToMany(() => FriendRequest, (friendRequest) => friendRequest.sender)
+  public sentFriendRequests!: FriendRequest[];
 
   toJSON() {
     return instanceToPlain(this, { enableCircularCheck: true });

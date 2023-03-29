@@ -13,7 +13,13 @@ export class UserService {
     const user = await this.repository.findOne({
       where: { id },
       relations: loadRelations
-        ? ['joinedGroups', 'joinedGroups.group']
+        ? [
+            'joinedGroups',
+            'joinedGroups.group',
+            'friends',
+            'friends.target',
+            'friends.preferences',
+          ]
         : undefined,
     });
 
