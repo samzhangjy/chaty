@@ -3,10 +3,21 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
+import * as fs from 'fs';
 
 async function bootstrap() {
-  const app: NestExpressApplication = await NestFactory.create(AppModule);
-  const config: ConfigService = app.get(ConfigService);
+  const configApp: NestExpressApplication = await NestFactory.create(AppModule);
+  const config: ConfigService = configApp.get(ConfigService);
+  const privateKeyLoc = config.get<string>('HTTPS_PRIVATE_KEY');
+  const certLoc = config.get<string>('HTTPS_PUBLIC_CERT');
+  const httpsOptions = {
+    key: privateKeyLoc ? fs.readFileSync(privateKeyLoc) : undefined,
+    cert: certLoc ? fs.readFileSync(certLoc) : undefined,
+  };
+
+  const app: NestExpressApplication = await NestFactory.create(AppModule, {
+    httpsOptions,
+  });
   const port: number = config.get<number>('PORT');
 
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
