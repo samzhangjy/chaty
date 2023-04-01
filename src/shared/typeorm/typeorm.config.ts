@@ -19,7 +19,7 @@ export const typeormConfig: DataSourceOptions = {
   username: process.env.DATABASE_USER,
   password: process.env.DATABASE_PASSWORD,
   entities: ['dist/**/*.entity.{ts,js}'],
-  migrations: ['migrations/*.{ts,js}'],
+  migrations: ['dist/migrations/*.{ts,js}'],
   migrationsTableName: 'typeorm_migrations',
   synchronize: !!process.env.IS_DEVELOPMENT ?? false,
 };
