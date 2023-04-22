@@ -14,7 +14,7 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
-    "migration:create": "typeorm migration:create -d src/shared/typeorm/typeorm.config.ts",
+    "migration:create": "typeorm migration:create",
     "migration:generate": "TS_NODE_PROJECT=tsconfig.json TS_NODE_TRANSPILE_ONLY=true ./node_modules/.bin/ts-node ./node_modules/typeorm/cli.js migration:generate -d src/shared/typeorm/typeorm.config.ts",
     "migration:run": "TS_NODE_PROJECT=tsconfig.json TS_NODE_TRANSPILE_ONLY=true ./node_modules/.bin/ts-node ./node_modules/typeorm/cli.js migration:run -d src/shared/typeorm/typeorm.config.ts"
   },
