@@ -1,23 +1,20 @@
 import { User } from '@/api/user/user.entity';
 import { UserService } from '@/api/user/user.service';
 import { ChatyConfig } from '@/common/helper/config.helper';
+import exceptionCodes from '@/common/helper/exception-codes.helper';
 import { ServiceException } from '@/common/helper/exception.helper';
 import { paginateResponse } from '@/common/helper/pagination.helper';
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
-import {
-  AddFriendDto,
-  SendFriendRequestDto,
-  UpdateFriendRequestDto,
-} from './friend.dto';
-import { Friend } from './friend.entity';
+import { SendFriendRequestDto, UpdateFriendRequestDto } from './friend.dto';
 import {
   FriendPermission,
   FriendPreferences,
 } from './friendPreferences.entity';
 import { FriendRequest, FriendRequestStatus } from './friendRequest.entity';
+import { Friend } from './friend.type';
 
 export type FriendRequestFilter =
   | 'HANDLED'
@@ -28,12 +25,6 @@ export type FriendRequestFilter =
 
 @Injectable()
 export class FriendService {
-  @InjectRepository(Friend)
-  private readonly friendRepository: Repository<Friend>;
-
-  @InjectRepository(User)
-  private readonly userRepository: Repository<User>;
-
   @InjectRepository(FriendRequest)
   private readonly friendRequestRepository: Repository<FriendRequest>;
 
@@ -66,6 +57,7 @@ export class FriendService {
       throw new ServiceException(
         'Friend request with given id not found.',
         HttpStatus.NOT_FOUND,
+        exceptionCodes.chat.friend.FRIEND_REQUEST_NOT_FOUND,
       );
     }
     if (
@@ -73,68 +65,13 @@ export class FriendService {
       request.sender.id !== user.id &&
       request.target.id !== user.id
     ) {
-      throw new ServiceException('Forbidden.', HttpStatus.FORBIDDEN);
-    }
-    return request;
-  }
-
-  /**
-   * Add a friend by an accepted friend request.
-   * @param payload Payload object with `requestId`.
-   */
-  public async addFriend({ requestId }: AddFriendDto) {
-    // TODO: figure out why it is not saving relations correctly
-    const request = await this.getFriendRequest(requestId, true);
-    if (request.status !== FriendRequestStatus.ACCEPTED) {
       throw new ServiceException(
-        'Friend request must be accepted to add the target user.',
+        'Forbidden.',
         HttpStatus.FORBIDDEN,
+        exceptionCodes.common.FORBIDDEN,
       );
     }
-    const senderToReceiverPreferences =
-      await this.friendPreferencesRepository.save({
-        nickname: request.senderSetNickname,
-        permission: request.senderSetPermission,
-      });
-    const senderToReceiver = await this.friendRepository.save({
-      preferences: senderToReceiverPreferences,
-      target: request.target,
-    });
-    const t = await this.friendRepository.findOne({
-      where: { id: senderToReceiver.id },
-      relations: ['target'],
-    });
-    console.log(t);
-    const receiverToSenderPreferences =
-      await this.friendPreferencesRepository.save({
-        nickname: request.targetSetNickname,
-        permission: request.targetSetPermission,
-      });
-    const receiverToSender = await this.friendRepository.save({
-      preferences: receiverToSenderPreferences,
-      target: request.sender,
-    });
-    await this.dataSource
-      .createQueryBuilder()
-      .relation(User, 'friends')
-      .of(request.sender)
-      .add(senderToReceiver.id);
-    const sender = await this.userRepository.findOne({
-      where: { id: request.sender.id },
-      relations: ['friends', 'friends.target'],
-    });
-    console.log(sender.friends);
-    const ta = await this.friendRepository.findOne({
-      where: { id: senderToReceiver.id },
-      relations: ['target'],
-    });
-    console.log(ta);
-    const receiver = await this.userRepository.findOne({
-      where: { id: request.target.id },
-      relations: ['friends'],
-    });
-    receiver.friends.push(receiverToSender);
-    await this.userRepository.save(receiver);
+    return request;
   }
 
   /**
@@ -151,30 +88,46 @@ export class FriendService {
   }: SendFriendRequestDto & { friendId: number }) {
     const target = await this.userService.getUser(friendId, false);
     const previousRequests = await this.friendRequestRepository.find({
-      where: {
-        sender: {
-          id: user.id,
+      where: [
+        {
+          sender: {
+            id: user.id,
+          },
+          target: {
+            id: friendId,
+          },
+          status: FriendRequestStatus.WAITING,
         },
-        target: {
-          id: friendId,
+        {
+          sender: {
+            id: user.id,
+          },
+          target: {
+            id: friendId,
+          },
+          status: FriendRequestStatus.ACCEPTED,
         },
-        status: FriendRequestStatus.WAITING,
-      },
+      ],
     });
 
     if (previousRequests.length) {
       throw new ServiceException(
-        'A pending friend request for the same target user already exists.',
+        'A pending or accepted friend request for the same target user already exists.',
         HttpStatus.CONFLICT,
+        exceptionCodes.chat.friend.PENDING_OR_ACCEPTED_FRIEND_REQUEST_ALREADY_EXISTS,
       );
     }
+
+    const preferences = await this.friendPreferencesRepository.save({
+      nickname,
+      permission,
+    });
 
     const request = await this.friendRequestRepository.save({
       message,
       target,
       sender: user,
-      senderSetNickname: nickname,
-      senderSetPermission: permission,
+      senderSetPreferences: preferences,
     });
     return request;
   }
@@ -195,12 +148,19 @@ export class FriendService {
   }) {
     const request = await this.getFriendRequest(requestId, ['target']);
     if (request.target.id !== user.id) {
-      throw new ServiceException('Forbidden.', HttpStatus.FORBIDDEN);
+      throw new ServiceException(
+        'Forbidden.',
+        HttpStatus.FORBIDDEN,
+        exceptionCodes.common.FORBIDDEN,
+      );
     }
+    const preferences = await this.friendPreferencesRepository.save({
+      nickname,
+      permission,
+    });
     await this.friendRequestRepository.update(request.id, {
       status,
-      targetSetNickname: nickname,
-      targetSetPermission: permission,
+      targetSetPreferences: preferences,
     });
   }
 
@@ -249,5 +209,40 @@ export class FriendService {
     });
 
     return paginateResponse(requests, page, take);
+  }
+
+  public async getFriends(user: User) {
+    const friends: Friend[] = [];
+    const sentAcceptedRequests = await this.friendRequestRepository.find({
+      where: {
+        sender: {
+          id: user.id,
+        },
+        status: FriendRequestStatus.ACCEPTED,
+      },
+      relations: ['target', 'senderSetPreferences'],
+    });
+    for (const request of sentAcceptedRequests) {
+      friends.push({
+        target: request.target,
+        preferences: request.senderSetPreferences,
+      });
+    }
+    const receivedAcceptedRequests = await this.friendRequestRepository.find({
+      where: {
+        target: {
+          id: user.id,
+        },
+        status: FriendRequestStatus.ACCEPTED,
+      },
+      relations: ['sender', 'targetSetPreferences'],
+    });
+    for (const request of receivedAcceptedRequests) {
+      friends.push({
+        target: request.sender,
+        preferences: request.targetSetPreferences,
+      });
+    }
+    return friends;
   }
 }

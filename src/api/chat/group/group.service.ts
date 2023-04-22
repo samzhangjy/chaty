@@ -1,14 +1,17 @@
-import { UserService } from '@/api/user/user.service';
+import exceptionCodes from '@/common/helper/exception-codes.helper';
 import { ServiceException } from '@/common/helper/exception.helper';
-import { HttpStatus, Inject, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
   FindOptionsRelationByString,
   FindOptionsRelations,
   In,
+  IsNull,
+  Not,
   Repository,
 } from 'typeorm';
 import { User } from '../../user/user.entity';
+import { Message } from '../chat.entity';
 import {
   CreateGroupDto,
   GroupRequestFilter,
@@ -42,8 +45,8 @@ export class GroupService {
   @InjectRepository(JoinGroupRequest)
   private readonly joinGroupRequestRepository: Repository<JoinGroupRequest>;
 
-  @Inject(UserService)
-  private readonly userService: UserService;
+  @InjectRepository(Message)
+  private readonly messageRepository: Repository<Message>;
 
   public async findGroupOrFail(
     groupId: number,
@@ -85,6 +88,7 @@ export class GroupService {
       throw new ServiceException(
         'Group or member not found.',
         HttpStatus.NOT_FOUND,
+        exceptionCodes.chat.group.GROUP_OR_MEMBER_NOT_FOUND,
       );
     }
     return (
@@ -199,6 +203,7 @@ export class GroupService {
       throw new ServiceException(
         'Request not found with given group.',
         HttpStatus.NOT_FOUND,
+        exceptionCodes.chat.group.JOIN_GROUP_REQUEST_NOT_FOUND,
       );
     }
     if (
@@ -207,7 +212,11 @@ export class GroupService {
         GroupRoles.ADMIN,
       ]))
     ) {
-      throw new ServiceException('Forbidden.', HttpStatus.FORBIDDEN);
+      throw new ServiceException(
+        'Forbidden.',
+        HttpStatus.FORBIDDEN,
+        exceptionCodes.common.FORBIDDEN,
+      );
     }
     await this.joinGroupRequestRepository.update(requestId, {
       status,
@@ -254,6 +263,7 @@ export class GroupService {
       throw new ServiceException(
         'You must declare a valid user to transfer ownership to.',
         HttpStatus.BAD_REQUEST,
+        exceptionCodes.chat.group.OWNERSHIP_TRANSFER_REQUIRED_BEFORE_LEAVE,
       );
     } else if (isCurrentUserOwner) {
       await this.groupToUserRepository.update(futureOwnerGTUId, {
@@ -286,6 +296,7 @@ export class GroupService {
       throw new ServiceException(
         'Handler with given id does not exist or does not have enough permission.',
         HttpStatus.NOT_FOUND,
+        exceptionCodes.chat.group.KICK_FORBIDDEN,
       );
     }
     if (
@@ -301,6 +312,7 @@ export class GroupService {
       throw new ServiceException(
         'User with given id have higher or equal permission with handler.',
         HttpStatus.FORBIDDEN,
+        exceptionCodes.chat.group.KICK_REQUIRES_HIGHER_PERMISSION,
       );
     }
     return await this.leave({ groupId }, target);
@@ -308,5 +320,23 @@ export class GroupService {
 
   public async getGroupMembers(groupId: number) {
     return (await this.findGroupOrFail(groupId, true)).members;
+  }
+
+  public async getLastMessageSent(groupId: number) {
+    const message = await this.messageRepository.findOne({
+      where: {
+        group: {
+          id: groupId,
+        },
+        sender: {
+          username: Not(IsNull()),
+        },
+      },
+      order: {
+        createdAt: 'DESC',
+      },
+      relations: ['sender'],
+    });
+    return message;
   }
 }

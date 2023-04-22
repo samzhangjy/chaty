@@ -32,13 +32,14 @@ export class ChatService {
     take: number;
     page: number;
     groupId: number;
+    skip: number;
   }) {
     const take = Math.min(
       query.take || 10,
       this.configService.get('query.limit', { infer: true }),
     );
     const page = query.page || 1;
-    const skip = (page - 1) * take;
+    const skip = (page - 1) * take + (query.skip ?? 0);
 
     const data = await this.messageRepository.findAndCount({
       relations: ['group', 'sender'],

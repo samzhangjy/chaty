@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { BaseExceptionFilter } from '@nestjs/core';
 import { Response } from 'express';
+import exceptionCodes from './exception-codes.helper';
 import { ServiceException } from './exception.helper';
 
 @Catch(ServiceException, HttpException)
@@ -20,6 +21,10 @@ export class HttpServiceExceptionFilter
       exception instanceof ServiceException
         ? exception.statusCode
         : exception.getStatus();
+    const errorCode =
+      exception instanceof ServiceException
+        ? exception.errorCode
+        : exceptionCodes.common.UNKNOWN;
     let message = exception.message;
     if (exception instanceof HttpException) {
       const httpMessage = exception.getResponse();
@@ -31,6 +36,7 @@ export class HttpServiceExceptionFilter
       statusCode: status,
       status: 'error',
       message,
+      errorCode,
     });
   }
 }

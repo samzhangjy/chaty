@@ -11,6 +11,8 @@ import { Group } from './group.entity';
 import { GroupService } from './group.service';
 import { GroupToUser } from './groupToUser.entity';
 import { JoinGroupRequest } from './joinGroupRequest.entity';
+import { UserModule } from '@/api/user/user.module';
+import { LastReadMessage } from '@/api/user/lastReadMessage.entity';
 
 @Module({
   providers: [GroupService, ChatService, UserService],
@@ -23,9 +25,11 @@ import { JoinGroupRequest } from './joinGroupRequest.entity';
       GroupToUser,
       JoinGroupRequest,
       Message,
+      LastReadMessage,
     ]),
     AuthModule,
     forwardRef(() => ChatModule),
+    forwardRef(() => UserModule),
   ],
 })
 export class GroupModule {}

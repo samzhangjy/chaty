@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '../user/auth/auth.module';
@@ -18,7 +18,7 @@ import { GroupModule } from './group/group.module';
     AuthModule,
     TypeOrmModule.forFeature([Message, User, Group]),
     ConfigModule,
-    GroupModule,
+    forwardRef(() => GroupModule),
     FriendModule,
   ],
   exports: [ChatGateway],

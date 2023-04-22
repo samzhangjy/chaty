@@ -3,10 +3,12 @@ import {
   CreateDateColumn,
   Entity,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { User } from '../user/user.entity';
 import { Group } from './group/group.entity';
+import { LastReadMessage } from '../user/lastReadMessage.entity';
 
 export enum MessageType {
   TEXT = 'text',
@@ -30,6 +32,12 @@ export class Message {
 
   @ManyToOne(() => Group, (group) => group.messages)
   public group!: Group;
+
+  @OneToMany(
+    () => LastReadMessage,
+    (lastReadMessage) => lastReadMessage.message,
+  )
+  public readStats!: LastReadMessage[];
 
   @CreateDateColumn()
   public createdAt!: Date;

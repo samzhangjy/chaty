@@ -1,3 +1,5 @@
+import exceptionCodes from '@/common/helper/exception-codes.helper';
+import { ServiceException } from '@/common/helper/exception.helper';
 import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -15,12 +17,15 @@ export class AuthService {
 
   public async register(body: RegisterDto) {
     const { username, email, password } = body;
-    let user = await this.repository.findOne({ where: { email } });
+    let user = await this.repository.findOne({
+      where: [{ email }, { username }],
+    });
 
     if (user) {
-      throw new HttpException(
-        'User with the same email already exists',
+      throw new ServiceException(
+        'User with the same email or username already exists',
         HttpStatus.CONFLICT,
+        exceptionCodes.auth.register.USER_ALREADY_EXISTS,
       );
     }
 
@@ -38,7 +43,11 @@ export class AuthService {
     const user = await this.repository.findOne({ where: { username } });
 
     if (!user) {
-      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+      throw new ServiceException(
+        'User not found',
+        HttpStatus.NOT_FOUND,
+        exceptionCodes.user.USER_NOT_FOUND,
+      );
     }
 
     const isPasswordValid = this.helper.isPasswordValid(
@@ -47,9 +56,10 @@ export class AuthService {
     );
 
     if (!isPasswordValid) {
-      throw new HttpException(
+      throw new ServiceException(
         'Wrong username or password',
         HttpStatus.FORBIDDEN,
+        exceptionCodes.auth.login.WRONG_USERNAME_OR_PASSWORD,
       );
     }
 

@@ -15,7 +15,6 @@ import {
   UseFilters,
   UseGuards,
 } from '@nestjs/common';
-import { ChatService } from '../chat.service';
 import { SendFriendRequestDto, UpdateFriendRequestDto } from './friend.dto';
 import { FriendRequestFilter, FriendService } from './friend.service';
 import { FriendRequestStatus } from './friendRequest.entity';
@@ -24,9 +23,6 @@ import { FriendRequestStatus } from './friendRequest.entity';
 @UseGuards(JwtAuthGuard)
 @UseFilters(new HttpServiceExceptionFilter())
 export class FriendController {
-  @Inject(ChatService)
-  private readonly chatService: ChatService;
-
   @Inject(FriendService)
   private readonly friendService: FriendService;
 
@@ -102,9 +98,12 @@ export class FriendController {
       requestId,
       user: req.user,
     });
-    if (payload.status === FriendRequestStatus.ACCEPTED) {
-      await this.friendService.addFriend({ requestId });
-    }
     return AckStatus.success();
+  }
+
+  @Get('/current')
+  async getFriends(@Request() req: ChatyRequest) {
+    const friends = await this.friendService.getFriends(req.user);
+    return { ...AckStatus.success(), friends };
   }
 }

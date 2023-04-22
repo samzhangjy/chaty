@@ -21,13 +21,14 @@ async function bootstrap() {
   );
 
   const app: NestExpressApplication = await NestFactory.create(AppModule, {
-    httpsOptions,
+    httpsOptions: certLoc ? httpsOptions : undefined,
+    cors: true,
   });
   const port: number = config.get<number>('PORT');
 
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
 
-  await app.listen(port, () => {
+  await app.listen(port, '0.0.0.0', () => {
     console.log(
       `\x1b[34m[Web] Chaty available on ${config.get<string>(
         'BASE_URL',
