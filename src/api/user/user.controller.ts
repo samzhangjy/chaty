@@ -45,6 +45,16 @@ export class UserController {
     return { ...AckStatus.success(), joinedGroups };
   }
 
+  @Get('/current/joinedGroups/:groupId')
+  @UseGuards(JwtAuthGuard)
+  async getJoinedGroup(
+    @Request() req: ChatyRequest,
+    @Param('groupId') groupId: number,
+  ) {
+    const group = await this.service.getJoinedGroup(groupId, req.user.id);
+    return { ...AckStatus.success(), group };
+  }
+
   @Post('/current/read/group/:groupId/:messageId')
   @UseGuards(JwtAuthGuard)
   async updateGroupMessageReadStatus(

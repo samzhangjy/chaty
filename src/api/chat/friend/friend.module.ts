@@ -13,6 +13,7 @@ import { FriendController } from './friend.controller';
 import { FriendService } from './friend.service';
 import { FriendPreferences } from './friendPreferences.entity';
 import { FriendRequest } from './friendRequest.entity';
+import { GroupToUser } from '../group/groupToUser.entity';
 
 @Module({
   controllers: [FriendController],
@@ -24,6 +25,7 @@ import { FriendRequest } from './friendRequest.entity';
       Message,
       Group,
       LastReadMessage,
+      GroupToUser,
     ]),
     AuthModule,
     forwardRef(() => ChatModule),

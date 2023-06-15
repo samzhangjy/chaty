@@ -129,6 +129,9 @@ export class GroupService {
     group.members = members;
 
     await this.groupRepository.save(group);
+
+    delete group.members;
+    return group;
   }
 
   public async sendRequest({

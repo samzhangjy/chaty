@@ -125,8 +125,11 @@ export class GroupController {
     @Request() req: ChatyRequest,
     @Body() payload: CreateGroupDto,
   ) {
-    await this.groupService.createGroup({ ...payload, user: req.user });
-    return AckStatus.success();
+    const group = await this.groupService.createGroup({
+      ...payload,
+      user: req.user,
+    });
+    return { group, ...AckStatus.success() };
   }
 
   @Post(':id/leave')

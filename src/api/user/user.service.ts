@@ -8,6 +8,7 @@ import { User } from './user.entity';
 import { GroupService } from '../chat/group/group.service';
 import { LastReadMessage } from './lastReadMessage.entity';
 import { Message } from '../chat/chat.entity';
+import { GroupToUser } from '../chat/group/groupToUser.entity';
 
 @Injectable()
 export class UserService {
@@ -19,6 +20,9 @@ export class UserService {
 
   @InjectRepository(Message)
   private readonly messageRepository: Repository<Message>;
+
+  @InjectRepository(GroupToUser)
+  private readonly groupToUserRepository: Repository<GroupToUser>;
 
   @Inject(GroupService)
   private readonly groupService: GroupService;
@@ -88,6 +92,16 @@ export class UserService {
         : 1;
     });
     return user.joinedGroups;
+  }
+
+  public async getJoinedGroup(groupId: number, userId: number) {
+    return this.groupToUserRepository.findOne({
+      where: {
+        group: { id: groupId },
+        user: { id: userId },
+      },
+      relations: ['group', 'group.members', 'group.members.user'],
+    });
   }
 
   public async updateLastReadMessage(
